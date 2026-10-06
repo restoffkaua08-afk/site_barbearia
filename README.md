@@ -2,6 +2,14 @@
 
 Site público com agendamento integrado à API do sistema. O cliente escolhe serviço, profissional, data e horário, informa nome, e-mail e celular e envia uma solicitação pendente. A barbearia confirma ou cancela pelo aplicativo; o site não informa que o horário está confirmado antes dessa decisão.
 
+## Publicar na Netlify
+
+Use `npm run build` como comando de build e `.next` como diretório de publicação, com a integração Next.js da Netlify. Configure `AGENDA_API_URL` e `AGENDA_TENANT_SLUG` para manter o agendamento integrado à API existente.
+
+O módulo `db/index.ts` usa Netlify Database (Postgres) com Drizzle, sem bindings do Cloudflare ou configuração manual de conexão. O schema fica em `db/schema.ts`; gere migrações com `npm run db:generate`. As migrações em `netlify/database/migrations` são aplicadas pela plataforma durante o deploy. A migração inicial cria a tabela de agendamentos e mantém a restrição de horário único; ela não importa dados de um banco D1 existente nem substitui a API de agendamento.
+
+Os exemplos D1 e as ferramentas de build do Cloudflare permanecem como referências legadas, fora da verificação TypeScript do aplicativo Next.js. As migrações SQLite em `drizzle/` não são usadas pela Netlify.
+
 ## Publicar na Vercel
 
 1. Importe este repositório na Vercel e mantenha a raiz do projeto como diretório de publicação.
