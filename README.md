@@ -23,7 +23,7 @@ O pedido exige nome, e-mail e telefone. A autorização de contato pelo WhatsApp
 Requer Node.js 22 ou superior.
 
 ```sh
-npm ci
+npm install
 npm run dev
 npm test
 ```
