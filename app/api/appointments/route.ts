@@ -45,11 +45,11 @@ async function forward(request: Request, path: string, body?: string) {
   if (body !== undefined) {
     headers.set("Content-Type", "application/json");
     const key = request.headers.get("idempotency-key");
-    if (!key || key.length > 200) return Response.json({ code: "IDEMPOTENCY_KEY_REQUIRED", message: "Atualize a página e tente novamente." }, { status: 400, headers: { "Cache-Control": "no-store" } });
+    if (!key || key.length < 8 || key.length > 200) return Response.json({ code: "IDEMPOTENCY_KEY_REQUIRED", message: "Atualize a página e tente novamente." }, { status: 400, headers: { "Cache-Control": "no-store" } });
     headers.set("Idempotency-Key", key);
   }
   try {
-    const upstream = await fetch(new URL(path, `${config.base}/`), { method: body === undefined ? "GET" : "POST", headers, body, cache: "no-store", redirect: "error" });
+    const upstream = await fetch(new URL(path, `${config.base}/`), { method: body === undefined ? "GET" : "POST", headers, body, cache: "no-store", redirect: "error", signal: AbortSignal.timeout(12_000) });
     const data = await upstream.json().catch(() => ({ code: "INVALID_API_RESPONSE", message: "A agenda não respondeu corretamente." }));
     return Response.json(data, { status: upstream.status, headers: { "Cache-Control": "no-store" } });
   } catch {
@@ -67,14 +67,14 @@ export async function GET(request: Request) {
   if (!/^[0-9a-f-]{36}$/i.test(staffId) || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
     return Response.json({ code: "INVALID_QUERY", message: "Escolha um profissional e uma data válidos." }, { status: 400, headers: { "Cache-Control": "no-store" } });
   }
-  return forward(request, `/v1/public/${config.tenant}/appointments?staffId=${encodeURIComponent(staffId)}`);
+  return forward(request, `/v1/public/${config.tenant}/appointments?staffId=${encodeURIComponent(staffId)}&date=${encodeURIComponent(date)}`);
 }
 
 export async function POST(request: Request) {
   const config = apiConfig();
-  if (!config) return forward(request, "", "{}");
+  if (!config) return Response.json({ code: "AGENDA_NOT_CONFIGURED", message: "A agenda online está sendo preparada. Tente novamente mais tarde." }, { status: 503, headers: { "Cache-Control": "no-store" } });
   const { body, tooLarge } = await readBookingBody(request);
-  if (tooLarge) return Response.json({ code: "PAYLOAD_TOO_LARGE", message: "Confira os dados e tente novamente." }, { status: 413, headers: { "Cache-Control": "no-store" } });
+  if (tooLarge) return Response.json({ code: "PAYLOAD_TOO_LARGE", message: "Confira os dados do agendamento." }, { status: 413, headers: { "Cache-Control": "no-store" } });
   try { JSON.parse(body); } catch { return Response.json({ code: "INVALID_BODY", message: "Confira os dados do agendamento." }, { status: 400, headers: { "Cache-Control": "no-store" } }); }
   return forward(request, `/v1/public/${config.tenant}/appointments`, body);
 }
