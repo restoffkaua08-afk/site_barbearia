@@ -12,6 +12,28 @@ type Catalog = { tenant: { name: string; timezone: string }; services: Service[]
 type Slot = { time: string; startsAt: string };
 type BookingError = Error & { code?: string; status?: number };
 
+function formatBrazilianPhone(input: string): string {
+  let digits = input.replace(/\\D/g, "");
+  if (digits.startsWith("55") && digits.length > 11) digits = digits.slice(2);
+  digits = digits.slice(0, 11);
+  if (digits.length <= 2) return digits ? `(${digits}` : "";
+  const ddd = digits.slice(0, 2);
+  const local = digits.slice(2);
+  if (local.length <= 4) return `(${ddd}) ${local}`;
+  if (local.length <= 8) return `(${ddd}) ${local.slice(0, 4)}-${local.slice(4)}`;
+  return `(${ddd}) ${local.slice(0, 5)}-${local.slice(5)}`;
+}
+
+function normalizeBrazilianPhone(input: string): string | null {
+  let digits = input.replace(/\\D/g, "");
+  if (digits.startsWith("00")) digits = digits.slice(2);
+  if (digits.startsWith("55")) digits = digits.slice(2);
+  if (digits.length !== 10 && digits.length !== 11) return null;
+  if (!/^[1-9]\\d$/.test(digits.slice(0, 2))) return null;
+  if (digits.length === 11 && digits[2] !== "9") return null;
+  return `+55${digits}`;
+}
+
 async function apiJson<T>(path: string, options?: RequestInit): Promise<T> {
   let response: Response;
   try { response = await fetch(path, { ...options, cache: "no-store" }); }
@@ -105,7 +127,7 @@ export default function BookingPage() {
     if (!service || !staffId || !chosenSlot || !nameValid || !emailValid || !phoneValid || submitting) return;
     setSubmitting(true);
     setError("");
-    const payload = { serviceId: service.id, staffId, startsAt: chosenSlot.startsAt, customerName: name.trim(), customerEmail: email.trim(), customerPhone: phone.trim(), whatsappOptIn };
+    const payload = { serviceId: service.id, staffId, startsAt: chosenSlot.startsAt, customerName: name.trim(), customerEmail: email.trim(), customerPhone: normalizedPhone!, whatsappOptIn };
     const fingerprint = JSON.stringify(payload);
     const attempt = idempotency.current?.fingerprint === fingerprint
       ? idempotency.current
@@ -163,7 +185,7 @@ export default function BookingPage() {
           </section>
           {selectedTime && chosenSlot && <form className="booking-section booking-details" onSubmit={submitBooking}>
             <div className="booking-section-title"><span>04</span><div><h3>Seus dados</h3><p>A barbearia usará estas informações para identificar e confirmar seu pedido.</p></div></div>
-            <div className="booking-fields-grid"><label>Nome completo<input value={name} onChange={(event) => setName(event.target.value)} maxLength={100} autoComplete="name" placeholder="Como podemos te chamar?" required minLength={2}/></label><label>E-mail<input type="email" value={email} onChange={(event) => setEmail(event.target.value)} maxLength={254} autoComplete="email" placeholder="voce@exemplo.com" required/></label><label className="booking-phone-field">Celular com DDD<input type="tel" value={phone} onChange={(event) => setPhone(event.target.value)} maxLength={20} autoComplete="tel" inputMode="tel" placeholder="(31) 99999-9999" required aria-describedby="phone-help"/><small id="phone-help">Obrigatório para a equipe entrar em contato.</small></label></div>
+            <div className="booking-fields-grid"><label>Nome completo<input value={name} onChange={(event) => setName(event.target.value)} maxLength={100} autoComplete="name" placeholder="Como podemos te chamar?" required minLength={2}/></label><label>E-mail<input type="email" value={email} onChange={(event) => setEmail(event.target.value)} maxLength={254} autoComplete="email" placeholder="voce@exemplo.com" required/></label><label className="booking-phone-field">Celular com DDD<input type="tel" value={phone} onChange={(event) => setPhone(formatBrazilianPhone(event.target.value))} maxLength={16} autoComplete="tel" inputMode="tel" placeholder="(31) 99999-9999" required aria-describedby="phone-help"/><small id="phone-help">Informe DDD e celular brasileiro, por exemplo (31) 97105-1343. Usaremos o número para falar sobre seu agendamento.</small></label></div>
             <label className="booking-consent"><input type="checkbox" checked={whatsappOptIn} onChange={(event) => setWhatsappOptIn(event.target.checked)}/><span>Autorizo a barbearia a entrar em contato comigo pelo WhatsApp sobre este agendamento.</span></label>
             <div className="booking-summary"><span>{service?.name} · {professionals.find((item) => item.id === staffId)?.name}</span><strong>{formattedDate} · {selectedTime}</strong></div>
             {error && <p className="booking-error" role="alert">{error}</p>}
